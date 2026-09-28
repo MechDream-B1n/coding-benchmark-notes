@@ -37,7 +37,7 @@ export function LearnApp() {
     <div className="min-h-full">
       <header className="border-b border-line bg-card">
         <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-6 px-6 py-6 xl:px-10">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-4">
             <div className="max-w-3xl">
               <p className="text-xs tracking-[0.18em] text-muted uppercase">Coding agent benchmarks</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight xl:text-4xl">两份考试，两种交卷方式</h1>
@@ -54,9 +54,9 @@ export function LearnApp() {
               </BenchButton>
             </div>
           </div>
-          <div className="grid items-stretch gap-4 lg:grid-cols-[1.3fr_1fr]">
+          <div className="flex flex-col gap-4">
             <LayerStack />
-            <dl className="grid content-start gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <dl className="grid gap-3">
               {glossary.map((item) => (
                 <div key={item.term} className="rounded-2xl border border-line bg-background px-4 py-3">
                   <dt className="text-sm font-medium">{item.term}</dt>
@@ -69,18 +69,15 @@ export function LearnApp() {
       </header>
 
       <main className="mx-auto flex w-full max-w-[1760px] flex-col gap-6 px-6 py-6 xl:px-10">
-        <div className="grid items-start gap-6 lg:grid-cols-2">
-          {bench === "swe" ? <SweIntro /> : <TbIntro gen={gen} onGen={(next) => { setGen(next); setStep(0); }} />}
-          {bench === "swe" ? <SweFlow /> : <TbFlow gen={gen} />}
-        </div>
+        {bench === "swe" ? <SweIntro /> : <TbIntro gen={gen} onGen={(next) => { setGen(next); setStep(0); }} />}
+        {bench === "swe" ? <SweFlow /> : <TbFlow gen={gen} />}
 
         <Walkthrough
           blocks={bench === "swe" ? sweExample : gen === "v1" ? tbV1Example : tbV2Example}
         />
 
-        <div className="grid items-start gap-6 lg:grid-cols-2">
-          <section className="rounded-3xl border border-line bg-card p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <section className="rounded-3xl border border-line bg-card p-5">
+            <div className="flex flex-col gap-3">
               <div>
                 <h2 className="text-xl font-semibold">谁能看见什么</h2>
                 <p className="mt-1 text-sm leading-6 text-muted">切换阶段，每一行只显示这一侧。</p>
@@ -93,7 +90,6 @@ export function LearnApp() {
             <FieldList fields={fields} phase={phase} />
           </section>
           <HarnessFlow harness={harness} step={step} onStep={setStep} />
-        </div>
 
         {bench === "swe" ? (
           <>
@@ -124,27 +120,22 @@ export function LearnApp() {
         ) : null}
 
         <section className="rounded-3xl border border-line bg-card p-5">
-          <h2 className="text-xl font-semibold">并排看</h2>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-muted">
-                <tr className="border-b border-line">
-                  <th className="w-28 py-2 pr-4 font-medium">维度</th>
-                  <th className="py-2 pr-4 font-medium">SWE-bench</th>
-                  <th className="py-2 font-medium">Terminal-Bench</th>
-                </tr>
-              </thead>
-              <tbody>
-                {compareRows.map((row) => (
-                  <tr key={row.dim} className="border-b border-line last:border-0">
-                    <td className="py-3 pr-4 align-top font-medium">{row.dim}</td>
-                    <td className="py-3 pr-4 align-top leading-6">{row.swe}</td>
-                    <td className="py-3 align-top leading-6">{row.tb}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <h2 className="text-xl font-semibold">对照</h2>
+          <ul className="mt-4 space-y-3">
+            {compareRows.map((row) => (
+              <li key={row.dim} className="rounded-2xl border border-line bg-background p-4">
+                <p className="text-sm font-medium">{row.dim}</p>
+                <p className="mt-2 text-sm leading-6">
+                  <span className="text-muted">SWE-bench · </span>
+                  {row.swe}
+                </p>
+                <p className="mt-1 text-sm leading-6">
+                  <span className="text-muted">Terminal-Bench · </span>
+                  {row.tb}
+                </p>
+              </li>
+            ))}
+          </ul>
         </section>
       </main>
     </div>
@@ -159,20 +150,15 @@ function LayerStack() {
   ];
   return (
     <div className="flex h-full flex-col rounded-2xl border border-line bg-background p-3">
-      <p className="px-1 text-xs font-medium text-muted">模型交给 scaffold，再交给 harness 判分</p>
-      <ol className="mt-2 flex flex-1 flex-col lg:flex-row lg:items-stretch">
+      <p className="px-1 text-xs font-medium text-muted">从上往下交卷：模型做事，harness 判分</p>
+      <ol className="mt-2 flex flex-col">
         {layers.map((layer, index) => (
-          <li key={layer.name} className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
-            <div className={`flex flex-1 flex-col justify-center rounded-xl px-3 py-3 ${index === 2 ? "bg-accent text-white" : "bg-card"}`}>
+          <li key={layer.name}>
+            <div className={`rounded-xl px-3 py-3 ${index === 2 ? "bg-accent text-white" : "bg-card"}`}>
               <p className="text-sm font-medium">{layer.name}</p>
               <p className={`text-xs leading-5 ${index === 2 ? "text-white/80" : "text-muted"}`}>{layer.note}</p>
             </div>
-            {index < layers.length - 1 ? (
-              <>
-                <div className="lg:hidden"><DownArrow /></div>
-                <RightArrow />
-              </>
-            ) : null}
+            {index < layers.length - 1 ? <DownArrow /> : null}
           </li>
         ))}
       </ol>
@@ -189,7 +175,7 @@ function SweFlow() {
         <li>
           <FlowCard kicker="1 · 造题">
             <p className="font-medium">已合并的 PR 拆成两份 diff</p>
-            <div className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 text-sm">
               <Split label="金补丁" text="改行为。解题时藏住。" />
               <Split label="test_patch" text="新测试。交卷后才注入。" />
             </div>
@@ -203,7 +189,7 @@ function SweFlow() {
               <LogLine state="只有 test_patch" result="test_port_zero 失败" />
               <LogLine state="再加上金补丁" result="test_port_zero 通过" />
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 text-sm">
               <Split label="FAIL_TO_PASS" text="失败变成通过。问题修好了没有。" />
               <Split label="PASS_TO_PASS" text="两次都通过。旧行为还在不在。" />
             </div>
@@ -255,7 +241,7 @@ function TbFlow({ gen }: { gen: Gen }) {
         停之前不在机器里：tests/、参考解、奖励该怎么写
       </div>
       <DownArrow label="自己停，或时间用完" />
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         <PathCard active={gen === "v1"} title="原版" text="框架放入 run-tests.sh，用仓库里的 pytest 解析器读输出，得到通过或失败。" />
         <PathCard active={gen === "v2"} title="第 2 代" text="tests/test.sh 自己把 0 或 1 写进 reward.txt。验证器可以换到另一只容器，只带走声明留下的文件。" />
       </div>
@@ -314,17 +300,6 @@ function HarnessFlow({
         })}
       </ol>
     </section>
-  );
-}
-
-function RightArrow() {
-  return (
-    <div className="hidden shrink-0 items-center px-1 text-accent lg:flex" aria-hidden>
-      <svg width="22" height="16" viewBox="0 0 22 16" fill="none">
-        <path d="M0 8h16" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M12 3l6 5-6 5" stroke="currentColor" strokeWidth="1.5" />
-      </svg>
-    </div>
   );
 }
 
@@ -441,7 +416,7 @@ function TbIntro({ gen, onGen }: { gen: Gen; onGen: (gen: Gen) => void }) {
 
 function FieldList({ fields, phase }: { fields: Field[]; phase: Phase }) {
   return (
-    <ul className="mt-4 sm:grid sm:grid-cols-2 sm:gap-x-6">
+    <ul className="mt-4">
       {fields.map((field) => {
         const cell = phase === "solve" ? field.solve : field.grade;
         const hidden = cell.includes("不可见") || cell === "不用" || cell.startsWith("不参与");
@@ -464,7 +439,7 @@ function Tools() {
       <p className="mt-2 text-sm leading-6 text-muted">
         SWE-bench 只收 unified diff。看文件、搜索、编辑、跑 bash，都是 scaffold 决定的。可以跑起点上已有的测试，那不等于看见了交卷后才注入的 test_patch。
       </p>
-      <ul className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      <ul className="mt-4 grid gap-3">
         {sweTools.map((tool) => (
           <li key={tool.name} className="rounded-2xl border border-line bg-background p-3">
             <div className="flex items-baseline justify-between gap-3">
@@ -484,7 +459,7 @@ function Timeline() {
   return (
     <section className="rounded-3xl border border-line bg-card p-5">
       <h2 className="text-xl font-semibold">三段时间</h2>
-      <ol className="mt-4 grid gap-3 lg:grid-cols-3">
+      <ol className="mt-4 grid gap-0">
         {sweTimeline.map((item, index) => (
           <li key={item.phase}>
             <div className="h-full rounded-2xl border border-line bg-background p-3">
@@ -498,7 +473,7 @@ function Timeline() {
                 ))}
               </ol>
             </div>
-            {index < sweTimeline.length - 1 ? <div className="lg:hidden"><DownArrow /></div> : null}
+            {index < sweTimeline.length - 1 ? <DownArrow /> : null}
           </li>
         ))}
       </ol>
@@ -508,8 +483,8 @@ function Timeline() {
 
 function Walkthrough({ blocks }: { blocks: ExampleBlock[] }) {
   return (
-    <section className="grid gap-4 lg:grid-cols-2">
-      <div className="lg:col-span-2">
+    <section className="flex flex-col gap-4">
+      <div>
         <h2 className="text-xl font-semibold">对照代码</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
           字段名和文件布局对齐公开格式。仓库、脚本和超时都是教学例，拿去和官方榜对数字会对不上。
@@ -529,7 +504,7 @@ function ExampleCard({ block, index }: { block: ExampleBlock; index: number }) {
       <h3 className="mt-1 text-lg font-semibold">{block.heading}</h3>
       <p className="mt-3 text-sm leading-7">{block.prose}</p>
       {block.snippets.length > 0 ? (
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        <div className="mt-4 grid gap-3">
           {block.snippets.map((snippet) => (
             <CodeBlock key={snippet.label} snippet={snippet} />
           ))}
