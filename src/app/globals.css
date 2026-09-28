@@ -41,10 +41,12 @@ main,
 main > *,
 article,
 figure,
+.grid > *,
 .overflow-x-auto {
   min-width: 0;
 }
 
 pre {
   max-width: 100%;
+  overflow-x: auto;
 }
