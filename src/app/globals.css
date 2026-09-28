@@ -79,3 +79,7 @@ pre {
   max-width: 100%;
   overflow-x: auto;
 }
+
+.grid > * {
+  min-width: 0;
+}
