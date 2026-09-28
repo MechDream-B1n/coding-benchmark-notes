@@ -36,7 +36,7 @@ export function LearnApp() {
   return (
     <div className="min-h-full">
       <header className="border-b border-line bg-card">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-6">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-5 py-6">
           <p className="text-xs tracking-[0.18em] text-muted uppercase">Coding agent benchmarks</p>
           <h1 className="text-3xl font-semibold tracking-tight">两份考试，两种交卷方式</h1>
           <p className="text-base leading-7 text-muted">
@@ -62,7 +62,7 @@ export function LearnApp() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-5 py-6">
         {bench === "swe" ? <SweIntro /> : <TbIntro gen={gen} onGen={(next) => { setGen(next); setStep(0); }} />}
         {bench === "swe" ? <SweFlow /> : <TbFlow gen={gen} />}
 
