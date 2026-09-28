@@ -36,3 +36,16 @@ body {
 ::selection {
   background: #fdba74;
 }
+
+main,
+main > *,
+article,
+figure,
+.overflow-x-auto {
+  min-width: 0;
+  max-width: 100%;
+}
+
+pre {
+  max-width: 100%;
+}

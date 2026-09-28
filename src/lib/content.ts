@@ -7,7 +7,7 @@ export type Field = {
   grade: string;
 };
 
-export type Step = { title: string; body: string };
+export type Step = { title: string; body: string; code?: string; codeLabel?: string };
 
 export const glossary = [
   {
@@ -34,10 +34,50 @@ export const sweFields: Field[] = [
 ];
 
 export const sweHarness: Step[] = [
-  { title: "准备容器", body: "代码停在 base_commit。镜像分三层：基础语言、仓库依赖、这一道题。" },
-  { title: "应用模型补丁", body: "把 unified diff 放进容器，尝试 git apply。失败会先恢复干净工作区再换参数。打不上就记为无法应用，不算「测试没过」。" },
-  { title: "注入测试并执行", body: "仓库评测脚本再应用 test_patch、跑测试、留下日志。多模态题还要把图片基线放回期望路径。" },
-  { title: "解析并判分", body: "FAIL_TO_PASS 全部通过，且 PASS_TO_PASS 全部保持通过，才算 resolved。主指标是 resolved 的题目比例。" },
+  {
+    title: "读预测文件",
+    body: "run_evaluation 读 JSONL。每行要有 instance_id、model_name_or_path 和 model_patch。predictions_path 为 gold 时，待测补丁换成数据集里的金补丁，用来确认镜像和测试能通。",
+    codeLabel: "preds.jsonl 的一行",
+    code: `{"instance_id":"acme__ports-17","model_name_or_path":"demo-model","model_patch":"diff --git a/ports.py ..."}`,
+  },
+  {
+    title: "从 base_commit 起容器",
+    body: "解题现场丢掉。这道题的容器重新停在 base_commit。镜像大致三层：基础语言、该仓库的依赖、停在该提交的题目镜像。依赖层可以给同一仓库的多道题复用。",
+  },
+  {
+    title: "应用 model_patch",
+    body: "补丁写进容器后尝试 git apply。一次失败可能弄脏工作区，所以下一种方式之前会先恢复干净树。几种方式都失败时，再用反向检查看补丁是不是其实已经完整打上。仍然没有，这题停在无法应用，后面不再产生测试日志。",
+    codeLabel: "概念顺序，具体参数以当前 harness 为准",
+    code: `git apply /tmp/patch.diff
+# 失败则恢复干净树，再换一种 apply
+git checkout -- .
+git clean -fd`,
+  },
+  {
+    title: "注入 test_patch 并跑测试",
+    body: "仓库评测脚本在模型补丁之后应用 test_patch、执行测试、留下日志。以教学例来说，这时 test_port_zero 才出现。多模态题还要把文本 diff 带不走的图片基线放回测试期望的路径。",
+  },
+  {
+    title: "对照两份名单",
+    body: "解析器把每条测试标成通过、失败或错误。FAIL_TO_PASS 全部通过，并且 PASS_TO_PASS 全部保持通过，resolved 才是 true。主指标是这次预测里 resolved 的比例。日志里缺了哪个测试名算过还是算挂，随 harness 版本变化，报告要写版本。",
+    codeLabel: "教学例里的判定",
+    code: `resolved = (
+    test_port_zero == PASSED
+    and test_port_80 == PASSED
+    and test_port_too_high == PASSED
+)`,
+  },
+  {
+    title: "按 run_id 落盘",
+    body: "结果按 run_id 加 instance_id 缓存，不看补丁内容。同一 run、同一题再次运行会复用第一次的日志。换了 model_patch 必须换 run_id。",
+    codeLabel: "报告片段",
+    code: `{
+  "acme__ports-17": {
+    "patch_successfully_applied": true,
+    "resolved": true
+  }
+}`,
+  },
 ];
 
 export const sweTools = [
@@ -111,17 +151,67 @@ export const tbV2Fields: Field[] = [
 ];
 
 export const tbV1Harness: Step[] = [
-  { title: "拉起容器", body: "用 Dockerfile 启动，把 task.yaml 里的指令交给 agent。" },
-  { title: "自由操作", body: "agent 在超时内执行命令、改文件、起进程。" },
-  { title: "跑验证脚本", body: "停止或超时后，在同一环境里跑 run-tests.sh。" },
-  { title: "框架解析", body: "退出码和输出交给 Terminal-Bench 仓库里的解析器，得到通过或失败。计分对象是 agent 加模型。" },
+  {
+    title: "按 Dockerfile 拉起",
+    body: "教学例 summarize 的镜像里有 3 行 notes.txt，以及一个读错路径的 summarize.sh。task.yaml 里的 instruction 交给 agent。parser_name、超时写在同一个文件里，agent 用到的是指令正文。",
+    codeLabel: "task.yaml 里和流程有关的字段",
+    code: `instruction: |-
+  Print how many lines are in /app/data/notes.txt.
+parser_name: pytest
+max_agent_timeout_sec: 300
+max_test_timeout_sec: 60`,
+  },
+  {
+    title: "在机器上改到自己停",
+    body: "agent 可以执行命令、改文件、起进程，并看见输出。它看不见 run-tests.sh、tests/ 和 solution.sh。时间用完也算结束。",
+  },
+  {
+    title: "结束后放入测试",
+    body: "框架把 tests/ 放到 /tests，执行 run-tests.sh。教学例里 pytest 检查标准输出去掉空白后是不是 3。",
+    codeLabel: "run-tests.sh",
+    code: `#!/bin/bash
+pytest -q /tests/test_outputs.py`,
+  },
+  {
+    title: "框架里的解析器判分",
+    body: "parser_name: pytest 指向 Terminal-Bench 仓库中的解析器。它读 pytest 的输出，映射成通过或失败。原版任务不写 reward.txt。被计分的是这一次接入的 agent 加模型。",
+  },
 ];
 
 export const tbV2Harness: Step[] = [
-  { title: "拉起工作容器", body: "按 environment/ 启动，只提供 instruction.md。" },
-  { title: "在限额内操作", body: "超时和资源写在 task.toml 里。换限制就是另一次实验。" },
-  { title: "独立验证", body: "tests/test.sh 可以在另一个容器里跑，只读取声明导出的 artifacts，避免 agent 改掉测试。" },
-  { title: "读奖励文件", body: "脚本把 0、1 或浮点写到 reward.txt。主榜常用二元通过。" },
+  {
+    title: "按 environment/ 拉起",
+    body: "agent 只拿到 instruction.md。镜像由 environment/Dockerfile 或 compose 定义。教学例的坏脚本和 notes.txt 与原版相同，测试不打进镜像。",
+  },
+  {
+    title: "在 task.toml 的限额内操作",
+    body: "agent 超时、验证超时、CPU 和内存分节写在 task.toml。这些数一变，就是另一次实验。agent 阶段没有 /tests，也没有 /solution。",
+    codeLabel: "task.toml 节选",
+    code: `[agent]
+timeout_sec = 300.0
+
+[verifier]
+timeout_sec = 60.0
+
+[environment]
+cpus = 1
+memory_mb = 2048`,
+  },
+  {
+    title: "验证阶段才复制 tests/",
+    body: "Harbor 把 tests/ 复制到 /tests，执行 bash /tests/test.sh。默认和 agent 结束后的容器是同一台，所以看得到被改过的 /app。验收代码必须离开这台机器时，改用单独的验证容器，只送入声明导出的 artifacts。",
+  },
+  {
+    title: "读奖励文件",
+    body: "test.sh 把数字写入 /logs/verifier/reward.txt，或把多项指标写入 reward.json。Harbor 优先读 json。主榜常用 0 和 1，也可以是浮点。原版那种「框架解析 pytest 输出」的步骤，在这里由任务脚本自己完成。",
+    codeLabel: "tests/test.sh",
+    code: `pytest -q /tests/test_outputs.py
+if [ $? -eq 0 ]; then
+  echo 1 > /logs/verifier/reward.txt
+else
+  echo 0 > /logs/verifier/reward.txt
+fi`,
+  },
 ];
 
 export const compareRows = [

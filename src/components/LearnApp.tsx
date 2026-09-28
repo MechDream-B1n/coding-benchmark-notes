@@ -17,6 +17,7 @@ import {
   type Phase,
   type Step,
 } from "@/lib/content";
+import { sweExample, tbV1Example, tbV2Example, type ExampleBlock, type Snippet } from "@/lib/examples";
 
 type Bench = "swe" | "tb";
 type Gen = "v1" | "v2";
@@ -66,6 +67,10 @@ export function LearnApp() {
 
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-8 md:px-8">
         {bench === "swe" ? <SweIntro /> : <TbIntro gen={gen} onGen={(next) => { setGen(next); setStep(0); }} />}
+
+        <Walkthrough
+          blocks={bench === "swe" ? sweExample : gen === "v1" ? tbV1Example : tbV2Example}
+        />
 
         <section className="rounded-3xl border border-line bg-card p-5 md:p-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -188,10 +193,10 @@ function SweIntro() {
       <article className="rounded-3xl border border-line bg-card p-5 md:p-7">
         <h2 className="text-xl font-semibold">SWE-bench 在问什么</h2>
         <p className="mt-3 leading-7">
-          给定真实仓库在 <code className="font-mono text-sm">base_commit</code> 的样子，以及对应的 GitHub issue，交出一份补丁，让问题行为被修好，且无关功能的测试仍然通过。
+          给定真实仓库在 <code className="font-mono text-sm">base_commit</code> 的样子，以及对应的 GitHub issue，交出一份 unified diff。评测把这份补丁打进干净容器，再注入当时 PR 新增的测试。
         </p>
         <p className="mt-3 leading-7 text-muted">
-          做对不等于复现金补丁。另一份写法只要让规定的测试过渡成立，也算 resolved。解题时只能使用起点代码和 issue 描述。
+          下面用缩小的 <code className="font-mono text-sm">acme__ports-17</code> 走完造题、交卷和打分。resolved 表示规定的测试从失败变为通过，同时旧测试仍通过。金补丁只是人类当时的一种写法。
         </p>
       </article>
       <article className="rounded-3xl bg-accent p-5 text-white md:p-7">
@@ -214,7 +219,7 @@ function TbIntro({ gen, onGen }: { gen: Gen; onGen: (gen: Gen) => void }) {
         <div>
           <h2 className="text-xl font-semibold">Terminal-Bench 在问什么</h2>
           <p className="mt-2 max-w-3xl leading-7 text-muted">
-            给一台准备好的机器和一段指令，让 agent 把机器做成指令描述的状态。没有 GitHub issue，也没有事先存在的失败测试当作完成定义。
+            给一台准备好的机器和一段指令，让 agent 把机器做成指令描述的状态。下面同一道教学例 summarize 会按代际换成两套目录：原版读 pytest 输出，第 2 代改读奖励文件。
           </p>
         </div>
         <div className="flex rounded-full border border-line bg-background p-1">
@@ -268,6 +273,18 @@ function HarnessDetail({ step, index, total }: { step: Step; index: number; tota
       </p>
       <h2 className="mt-2 text-2xl font-semibold">{step.title}</h2>
       <p className="mt-4 text-base leading-8">{step.body}</p>
+      {step.code ? (
+        <div className="mt-5">
+          <CodeBlock
+            snippet={{
+              label: step.codeLabel ?? "片段",
+              lang: "text",
+              code: step.code,
+              caption: "",
+            }}
+          />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -322,6 +339,58 @@ function Timeline() {
         </article>
       ))}
     </section>
+  );
+}
+
+function Walkthrough({ blocks }: { blocks: ExampleBlock[] }) {
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="px-1">
+        <h2 className="text-xl font-semibold">用一道缩小的题走完流程</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
+          字段名和文件布局对齐公开格式。仓库、脚本和超时都是教学例，拿去和官方榜对数字会对不上。
+        </p>
+      </div>
+      {blocks.map((block, index) => (
+        <ExampleCard key={block.heading} block={block} index={index} />
+      ))}
+    </section>
+  );
+}
+
+function ExampleCard({ block, index }: { block: ExampleBlock; index: number }) {
+  return (
+    <article className="rounded-3xl border border-line bg-card p-5 md:p-7">
+      <p className="font-mono text-xs text-accent">{index + 1}</p>
+      <h3 className="mt-1 text-lg font-semibold">{block.heading}</h3>
+      <p className="mt-3 leading-7">{block.prose}</p>
+      {block.snippets.length > 0 ? (
+        <div className="mt-4 grid gap-4">
+          {block.snippets.map((snippet) => (
+            <CodeBlock key={snippet.label} snippet={snippet} />
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function CodeBlock({ snippet }: { snippet: Snippet }) {
+  return (
+    <figure className="overflow-hidden rounded-2xl border border-line bg-background">
+      <figcaption className="flex items-center justify-between gap-3 border-b border-line px-4 py-2 text-xs">
+        <span className="font-medium">{snippet.label}</span>
+        <span className="font-mono text-muted">{snippet.lang}</span>
+      </figcaption>
+      <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-6">
+        <code>{snippet.code}</code>
+      </pre>
+      {snippet.caption ? (
+        <figcaption className="border-t border-line px-4 py-3 text-sm leading-6 text-muted">
+          {snippet.caption}
+        </figcaption>
+      ) : null}
+    </figure>
   );
 }
 

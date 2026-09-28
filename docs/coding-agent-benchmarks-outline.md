@@ -156,9 +156,145 @@ SWE-bench 发布时并不是今天这种多步 agent 榜。
 - 2024 起，SWE-agent 这一类多步 scaffold 成为主要报告方式，评测也改为全容器。
 - 再往后，榜单分裂成「固定 bash scaffold 比模型」和「各家 agent 比产品」。
 
----
+### 走一遍：教学例 `acme__ports-17`
 
+下面的仓库、issue 和测试都是为了把字段走通而写的缩小例子。字段名、预测文件和评测入口对齐公开格式。它不是 SWE-bench 榜上的某一道真题，也没有对应的官方镜像。
 
+**1. 模型在解题时看见的**
+
+起点代码停在 `base_commit`。issue 是任务说明。
+
+```python
+# ports.py，位于 base_commit
+def parse_port(text: str) -> int:
+    port = int(text)
+    if port <= 0 or port > 65535:
+        raise ValueError("port out of range")
+    return port
+```
+
+```text
+parse_port rejects port 0
+
+Calling parse_port("0") raises ValueError.
+Port 0 is a valid port number and should be returned.
+Ports above 65535 must still be rejected.
+```
+
+仓库里已经有两道旧测试：`test_port_80` 期望 80 被接受，`test_port_too_high` 期望 70000 被拒绝。模型可以读到它们，也可以自己再跑。此时还没有 `test_port_zero`，因为那道测试在后来的 PR 里才加进去。
+
+**2. 出题方把人类 PR 拆成两份 diff**
+
+金补丁只留行为修改。测试改动单独成为 `test_patch`。解题时这两份都不可见。
+
+```diff
+# patch：金补丁
+diff --git a/ports.py b/ports.py
+--- a/ports.py
++++ b/ports.py
+@@ -1,6 +1,6 @@
+ def parse_port(text: str) -> int:
+     port = int(text)
+-    if port <= 0 or port > 65535:
++    if port < 0 or port > 65535:
+         raise ValueError("port out of range")
+     return port
+```
+
+```diff
+# test_patch
+diff --git a/tests/test_ports.py b/tests/test_ports.py
+--- a/tests/test_ports.py
++++ b/tests/test_ports.py
+@@ -6,3 +6,6 @@ def test_port_too_high():
+     with pytest.raises(ValueError):
+         parse_port("70000")
++
++def test_port_zero():
++    assert parse_port("0") == 0
+```
+
+**3. 两遍测试日志变成名单**
+
+出题方先只打上 `test_patch`，再打上金补丁，各跑一次。
+
+```text
+只有 test_patch
+FAILED tests/test_ports.py::test_port_zero
+PASSED tests/test_ports.py::test_port_80
+PASSED tests/test_ports.py::test_port_too_high
+
+test_patch 加上金补丁
+PASSED tests/test_ports.py::test_port_zero
+PASSED tests/test_ports.py::test_port_80
+PASSED tests/test_ports.py::test_port_too_high
+```
+
+于是：
+
+- `FAIL_TO_PASS` = `test_port_zero`。它记录「问题有没有被修好」。
+- `PASS_TO_PASS` = `test_port_80` 和 `test_port_too_high`。它们记录「旧行为还在不在」。
+
+数据集里这两个字段有时是 JSON 数组，有时是数组的字符串。评测前都会解析成测试名列表。
+
+**4. 另一份补丁也可以 resolved**
+
+模型交卷时不需要复述金补丁。下面这份把条件写成区间，diff 文本和人类 PR 不同，但三道测试的过渡相同，这道题仍然 resolved。
+
+```diff
+diff --git a/ports.py b/ports.py
+--- a/ports.py
++++ b/ports.py
+@@ -1,6 +1,6 @@
+ def parse_port(text: str) -> int:
+     port = int(text)
+-    if port <= 0 or port > 65535:
++    if not (0 <= port <= 65535):
+         raise ValueError("port out of range")
+     return port
+```
+
+若模型把上界检查删掉，`test_port_zero` 会通过，`test_port_too_high` 会失败。FAIL_TO_PASS 全过并不足够，PASS_TO_PASS 有一条失败，resolved 为 false。
+
+若 unified diff 的上下文对不上 `base_commit`，harness 记为补丁没有应用。这和「测试跑了但没过」是两种日志。空补丁同样 unresolved：报告里能看到补丁缺失。
+
+**5. 预测文件和评测入口**
+
+scaffold 结束时抽出 git diff，写成 JSONL 的一行。官方字段是 `instance_id`、`model_name_or_path`、`model_patch`。
+
+```json
+{"instance_id":"acme__ports-17","model_name_or_path":"demo-model","model_patch":"diff --git a/ports.py b/ports.py\n..."}
+```
+
+打分入口（参数名来自当前 `swebench.harness.run_evaluation` 文档）：
+
+```bash
+python -m swebench.harness.run_evaluation \
+  --dataset_name princeton-nlp/SWE-bench_Lite \
+  --predictions_path preds.jsonl \
+  --max_workers 4 \
+  --run_id ports-demo-001
+```
+
+`predictions_path gold` 时，待测补丁换成数据集里的金补丁，用来确认镜像和测试本身能通。那是自检，不是模型成绩。
+
+单题容器从 `base_commit` 重新开始。镜像大致三层：基础语言镜像、这个仓库的依赖镜像、停在该提交的题目镜像。harness 把 `model_patch` 写进容器，按几种 `git apply` 尝试打上。某一次失败可能把工作区弄脏，所以下一次尝试前会先恢复干净树。几种方式都没有成功时，再用反向检查看补丁是不是其实已经完整打上。仍然没有，这题就停在「无法应用」。
+
+应用成功后，该仓库的评测脚本再打上 `test_patch`、跑测试、留下日志。解析器把每条测试标成通过、失败或错误。默认规则下，FAIL_TO_PASS 全部通过且 PASS_TO_PASS 全部保持通过，报告里 `resolved` 为 true。
+
+```json
+{
+  "acme__ports-17": {
+    "patch_exists": true,
+    "patch_successfully_applied": true,
+    "resolved": true
+  }
+}
+```
+
+同一 `run_id` 加同一个 `instance_id` 会复用已有日志，缓存不看补丁内容。换了一份 `model_patch` 就要换 `run_id`。
+
+主指标是本次预测文件里 resolved 为 true 的题目比例。报告同时写数据集、scaffold、超时和 harness 版本。Lite 上的比例、Verified 上的比例、Bash Only 上的比例是三次实验。
 
 ### 分支
 
@@ -229,6 +365,74 @@ SWE-bench 发布时并不是今天这种多步 agent 榜。
 
 打分：跑 `run-tests.sh`，用仓库内解析器得到二元结果。答案是结束时的环境，不是一份 git diff，也不是命令历史文本。
 
+### 走一遍：教学例 `summarize`
+
+同一道终端题会在下一章用 Harbor 格式再写一遍。这里只使用原版目录。脚本、数据和超时都是教学例，不是 Terminal-Bench 仓库里的某道真题。
+
+原版一道题通常长这样：
+
+```text
+summarize/
+  task.yaml
+  Dockerfile
+  run-tests.sh
+  solution.sh
+  tests/test_outputs.py
+```
+
+很多真题还有 `docker-compose.yaml`。教学例只用 Dockerfile，用来看清谁在什么时候读哪个文件。
+
+`task.yaml` 把指令和解析器名字放在一起。真实任务还会写作者、难度和各类超时；下面只留和流程有关的字段，超时数字是示例。
+
+```yaml
+instruction: |-
+  /app/bin/summarize.sh should print how many lines are in
+  /app/data/notes.txt. Print one integer and nothing else.
+  The script currently fails.
+parser_name: pytest
+max_agent_timeout_sec: 300
+max_test_timeout_sec: 60
+```
+
+工作容器里有一份坏掉的脚本和一份数据。agent 看得到它们，也看得到自己每条命令的输出。
+
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+RUN mkdir -p /app/bin /app/data
+RUN printf 'alpha\nbeta\ngamma\n' > /app/data/notes.txt
+RUN printf '#!/bin/bash\nwc -l /app/data/missing.txt\n' > /app/bin/summarize.sh
+RUN chmod +x /app/bin/summarize.sh
+```
+
+`notes.txt` 有 3 行。指令已经要求打印行数，所以 agent 可以自己数。它看不到的是验收脚本：框架在 agent 停止之后才把 `tests/` 和 `run-tests.sh` 放进环境。
+
+```python
+# tests/test_outputs.py
+import subprocess
+
+def test_line_count():
+    out = subprocess.check_output(["/app/bin/summarize.sh"], text=True)
+    assert out.strip() == "3"
+```
+
+```bash
+#!/bin/bash
+# run-tests.sh
+pytest -q /tests/test_outputs.py
+```
+
+`parser_name: pytest` 指向 Terminal-Bench 仓库里的解析器，不是这道题自带的。解析器读 pytest 的输出，映射成通过或失败。原版不要求任务自己写 `reward.txt`。
+
+参考解 `solution.sh` 只给 oracle 用，用来确认题本身能通过这个解析器。一种能通过的写法是把行数单独打出来：
+
+```bash
+#!/bin/bash
+wc -l < /app/data/notes.txt | awk '{print $1}'
+```
+
+agent 若改成 `printf '3\n'`，这道教学测试也会通过，因为验收只看标准输出。指令若还要求「脚本必须读取 notes.txt」，测试就应该覆盖那个行为；测试没写到的行为，原版解析器不会额外判。计分对象是接入的 agent 加模型。换 scaffold、CPU、内存或超时，就是另一次实验。
+
 ### 和 SWE-bench 的差别
 
 SWE-bench 从固定 commit 抽出补丁，在干净容器里重放。原版 Terminal-Bench 从空任务容器开始，认的是 agent 离开后的那台机器。完成与否由框架解析测试输出，而不是 FAIL_TO_PASS 名单。
@@ -282,6 +486,68 @@ Harbor 不再把「测试输出到二元奖励」的解析器放在框架仓库�
 解题：agent 操作工作容器，直到停止或超时。
 
 打分：导出 `task.toml` 允许留下的现场，在验证器里跑 `test.sh`，读奖励文件。不把 shell 历史当成提交物。
+
+### 走一遍：同一道 `summarize`，换成 Harbor
+
+第 2 代把上一章那道题拆成 Harbor 任务目录。指令、环境和验证不再挤在一个 YAML 里。
+
+```text
+summarize/
+  instruction.md
+  task.toml
+  environment/Dockerfile
+  solution/solve.sh
+  tests/test.sh
+  tests/test_outputs.py
+```
+
+`instruction.md` 就是给 agent 的正文，内容和上一章 `task.yaml` 里的 instruction 相同。配置进 `task.toml`。下面是流程相关的一小段；Harbor 的完整 schema 还有作者、网络策略、单独的验证环境等字段。
+
+```toml
+schema_version = "1.4"
+
+[task]
+name = "demo/summarize"
+description = "Print the line count of notes.txt"
+
+[verifier]
+timeout_sec = 60.0
+
+[agent]
+timeout_sec = 300.0
+
+[environment]
+cpus = 1
+memory_mb = 2048
+storage_mb = 10240
+```
+
+`environment/Dockerfile` 与上一章相同：坏掉的 `summarize.sh` 和 3 行的 `notes.txt`。测试文件不要打进这张镜像。
+
+Harbor 在验证阶段才把 `tests/` 复制到容器里的 `/tests`，并执行 `bash /tests/test.sh`。工作目录常常是 `/app`。脚本自己把奖励写成数字。Harbor 优先读 `/logs/verifier/reward.json`，没有再读 `reward.txt`。主榜常用 0 和 1。
+
+```bash
+#!/bin/bash
+# tests/test.sh
+pytest -q /tests/test_outputs.py
+if [ $? -eq 0 ]; then
+  echo 1 > /logs/verifier/reward.txt
+else
+  echo 0 > /logs/verifier/reward.txt
+fi
+```
+
+`test_outputs.py` 仍断言标准输出去掉空白后是 `3`。参考解搬到 `solution/solve.sh`。Oracle 运行时才会把它复制到 `/solution` 并执行。agent 阶段没有这个目录。
+
+默认验证器和 agent 共用结束后的那台容器，因此能看见 agent 改过的 `/app`。需要把验收代码完全隔开时，把验证器设成单独容器，只把任务声明导出的 artifacts 送进去。换了这种隔离方式，就是另一次实验。
+
+一次运行的入口形状是：
+
+```bash
+harbor run -p summarize -a terminus-2 -m <model>
+```
+
+`-a` 是 scaffold，`-m` 是模型。通过率写成这一对的结果。原版 `task.yaml` 加解析器得到的通过率，和第 2 代 `reward.txt` 得到的通过率，不要写进同一个数。
 
 ### 和原版、和 SWE-bench 的差别
 
