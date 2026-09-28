@@ -1,16 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { sweHarness, sweTimeline, tbV1Harness, tbV2Harness, type Step } from "@/lib/content";
-
-type Gen = "v1" | "v2";
+import { sweHarness, sweTimeline, tbV1Harness, type Step } from "@/lib/content";
 
 export function LayerDiagram() {
   const layers = [
     {
       name: "模型",
       role: "读题，决定下一步",
-      detail: "它只产出下一步要说的话。隐藏测试、金补丁和奖励文件都不在它手里。换一个模型，分数当然会变。",
+      detail: "它只产出下一步要说的话。隐藏测试和金补丁都不在它手里。换一个模型，分数当然会变。",
     },
     {
       name: "scaffold",
@@ -74,15 +72,15 @@ export function SweDiagram() {
   );
 }
 
-export function TbDiagram({ gen }: { gen: Gen }) {
+export function TbDiagram() {
   return (
     <Stage
       title="流程"
-      eyebrow={gen === "v1" ? "原版 · summarize" : "第 2 代 · summarize"}
+      eyebrow="教学例 summarize"
       stages={[
-        { label: "工作", hint: "机器里只有坏脚本和数据。测试还在外面。", scene: <TbWork gen={gen} /> },
-        { label: "停止", hint: "自己停，或时间用完。这时测试才进机器。", scene: <TbStop gen={gen} /> },
-        { label: "判分", hint: gen === "v1" ? "框架解析 pytest 输出，任务不写奖励文件。" : "test.sh 自己把 0 或 1 写进奖励文件。", scene: <TbGrade gen={gen} /> },
+        { label: "工作", hint: "机器里只有坏脚本和数据。测试还在外面。", scene: <TbWork /> },
+        { label: "停止", hint: "自己停，或时间用完。这时测试才进机器。", scene: <TbStop /> },
+        { label: "判分", hint: "框架解析 pytest 输出。", scene: <TbGrade /> },
       ]}
     />
   );
@@ -107,8 +105,8 @@ export function SweHarnessPlayer() {
   return <HarnessPlayer steps={sweHarness} />;
 }
 
-export function TbHarnessPlayer({ gen }: { gen: Gen }) {
-  return <HarnessPlayer key={gen} steps={gen === "v1" ? tbV1Harness : tbV2Harness} />;
+export function TbHarnessPlayer() {
+  return <HarnessPlayer steps={tbV1Harness} />;
 }
 
 export function TimelinePlayer() {
@@ -408,12 +406,11 @@ function VerdictScene() {
   );
 }
 
-function TbWork({ gen }: { gen: Gen }) {
+function TbWork() {
   return (
     <div className="space-y-3">
       <p className="rounded-xl border bg-background px-3 py-2 text-sm leading-6">
-        {gen === "v1" ? "指令写在 task.yaml 里。" : "指令写在 instruction.md 里。"}
-        让 /app/bin/summarize.sh 打印 /app/data/notes.txt 的行数。
+        指令写在 task.yaml 里。让 /app/bin/summarize.sh 打印 /app/data/notes.txt 的行数。
       </p>
       <Machine caption="agent 正在改这台机器">
         <File name="bin/summarize.sh" tone="bad" body="wc -l /app/data/missing.txt" />
@@ -427,16 +424,12 @@ function TbWork({ gen }: { gen: Gen }) {
   );
 }
 
-function TbStop({ gen }: { gen: Gen }) {
+function TbStop() {
   return (
     <div className="space-y-3">
       <Machine caption="agent 已停止">
         <File name="bin/summarize.sh" tone="ok" body="wc -l < /app/data/notes.txt" />
-        <File
-          name={gen === "v1" ? "run-tests.sh + tests/" : "tests/test.sh"}
-          tone="new"
-          body={gen === "v1" ? "pytest -q /tests/test_outputs.py" : "bash /tests/test.sh"}
-        />
+        <File name="run-tests.sh + tests/" tone="new" body="pytest -q /tests/test_outputs.py" />
       </Machine>
       <p className="text-xs leading-5 text-muted-foreground">图里是改对之后的机器。改错或没改完就停，下一拍会判失败。</p>
       <Outside label="仍然不交给 agent">
@@ -446,28 +439,17 @@ function TbStop({ gen }: { gen: Gen }) {
   );
 }
 
-function TbGrade({ gen }: { gen: Gen }) {
-  if (gen === "v1") {
-    return (
-      <div className="grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr]">
-        <Panel kicker="pytest 输出" body={"PASSED test_line_count\nassert strip() == \"3\""} />
-        <div className="flex items-center justify-center text-xs text-emerald-600 sm:flex-col">
-          <span aria-hidden>→</span>
-          <span className="px-2 text-center text-muted-foreground">parser_name: pytest</span>
-        </div>
-        <div className="flex flex-col justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-          <p className="text-sm font-medium text-emerald-800">通过或失败</p>
-          <p className="mt-1 text-sm leading-6 text-emerald-900/80">解析器在 Terminal-Bench 仓库里，不在任务目录。任务不写 reward.txt。</p>
-        </div>
-      </div>
-    );
-  }
+function TbGrade() {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Panel kicker="tests/test.sh 写下" body={"/logs/verifier/reward.txt\n1"} />
-      <div className="rounded-xl border border-dashed px-3 py-3">
-        <p className="text-sm font-medium">也可以隔开验证器</p>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">Harbor 优先读 reward.json，再读 reward.txt。单独的验证容器只拿走任务声明留下的文件。</p>
+    <div className="grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr]">
+      <Panel kicker="pytest 输出" body={"PASSED test_line_count\nassert strip() == \"3\""} />
+      <div className="flex items-center justify-center text-xs text-emerald-600 sm:flex-col">
+        <span aria-hidden>→</span>
+        <span className="px-2 text-center text-muted-foreground">parser_name: pytest</span>
+      </div>
+      <div className="flex flex-col justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+        <p className="text-sm font-medium text-emerald-800">通过或失败</p>
+        <p className="mt-1 text-sm leading-6 text-emerald-900/80">解析器在 Terminal-Bench 仓库里，不在任务目录。run-tests.sh 只负责跑测试。</p>
       </div>
     </div>
   );

@@ -140,16 +140,6 @@ export const tbV1Fields: Field[] = [
   { name: "solution.sh", what: "参考解", solve: "不可见", grade: "用来确认题本身可解" },
 ];
 
-export const tbV2Fields: Field[] = [
-  { name: "instruction.md", what: "任务说明，单独一个文件", solve: "可见", grade: "不参与打分文本" },
-  { name: "task.toml", what: "超时、资源、要导出的 artifacts", solve: "运行配置", grade: "约束验证器能读什么" },
-  { name: "environment/", what: "Dockerfile 或 compose", solve: "agent 生活在这里", grade: "被改过的现场" },
-  { name: "tests/test.sh", what: "验证脚本", solve: "不可见", grade: "agent 结束后运行" },
-  { name: "tests/ 其余文件", what: "pytest、期望数据", solve: "不可见", grade: "验证器可读" },
-  { name: "solution/solve.sh", what: "参考解", solve: "不可见", grade: "只做 oracle，不和答案比文本" },
-  { name: "reward.txt", what: "/logs/verifier/reward.txt 或 reward.json", solve: "不可见", grade: "脚本必须写下" },
-];
-
 export const tbV1Harness: Step[] = [
   {
     title: "按 Dockerfile 拉起",
@@ -174,50 +164,14 @@ pytest -q /tests/test_outputs.py`,
   },
   {
     title: "框架里的解析器判分",
-    body: "parser_name: pytest 指向 Terminal-Bench 仓库中的解析器。它读 pytest 的输出，映射成通过或失败。原版任务不写 reward.txt。被计分的是这一次接入的 agent 加模型。",
-  },
-];
-
-export const tbV2Harness: Step[] = [
-  {
-    title: "按 environment/ 拉起",
-    body: "agent 只拿到 instruction.md。镜像由 environment/Dockerfile 或 compose 定义。教学例的坏脚本和 notes.txt 与原版相同，测试不打进镜像。",
-  },
-  {
-    title: "在 task.toml 的限额内操作",
-    body: "agent 超时、验证超时、CPU 和内存分节写在 task.toml。这些数一变，就是另一次实验。agent 阶段没有 /tests，也没有 /solution。",
-    codeLabel: "task.toml 节选",
-    code: `[agent]
-timeout_sec = 300.0
-
-[verifier]
-timeout_sec = 60.0
-
-[environment]
-cpus = 1
-memory_mb = 2048`,
-  },
-  {
-    title: "验证阶段才复制 tests/",
-    body: "Harbor 把 tests/ 复制到 /tests，执行 bash /tests/test.sh。默认和 agent 结束后的容器是同一台，所以看得到被改过的 /app。验收代码必须离开这台机器时，改用单独的验证容器，只送入声明导出的 artifacts。",
-  },
-  {
-    title: "读奖励文件",
-    body: "test.sh 把数字写入 /logs/verifier/reward.txt，或把多项指标写入 reward.json。Harbor 优先读 json。主榜常用 0 和 1，也可以是浮点。原版那种「框架解析 pytest 输出」的步骤，在这里由任务脚本自己完成。",
-    codeLabel: "tests/test.sh",
-    code: `pytest -q /tests/test_outputs.py
-if [ $? -eq 0 ]; then
-  echo 1 > /logs/verifier/reward.txt
-else
-  echo 0 > /logs/verifier/reward.txt
-fi`,
+    body: "parser_name: pytest 指向 Terminal-Bench 仓库中的解析器。它读 pytest 的输出，映射成通过或失败。被计分的是这一次接入的 agent 加模型。",
   },
 ];
 
 export const compareRows = [
   { dim: "起点", swe: "真实仓库的一个 commit", tb: "为题目构建的容器" },
-  { dim: "完成定义", swe: "隐藏测试从失败变为通过，且原有测试仍通过", tb: "指令是否做完，由测试输出或奖励文件表示" },
-  { dim: "提交物", swe: "unified diff", tb: "结束时的机器，或声明留下的文件" },
+  { dim: "完成定义", swe: "隐藏测试从失败变为通过，且原有测试仍通过", tb: "指令是否做完，由框架解析 pytest 输出" },
+  { dim: "提交物", swe: "unified diff", tb: "结束时的那台机器" },
   { dim: "测试何时出现", swe: "交卷后注入 test_patch", tb: "agent 结束后才运行验证" },
   { dim: "现场", swe: "打分前丢掉，只认补丁", tb: "打分就认这台被改过的机器" },
   { dim: "报告单位", swe: "常写成模型名，实际含 scaffold", tb: "必须写成 agent 加模型" },

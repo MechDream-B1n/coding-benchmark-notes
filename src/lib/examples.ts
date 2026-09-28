@@ -169,11 +169,11 @@ PASSED tests/test_ports.py::test_port_too_high`,
 
 export const tbV1Example: ExampleBlock[] = [
   {
-    heading: "原版把指令和解析器写在同一个 YAML 里",
-    prose: "教学例叫 summarize：修好一个打印行数的脚本。它不是 Terminal-Bench 仓库里的真题。原版目录把说明嵌在 task.yaml。很多真题还有 docker-compose.yaml；这里只用 Dockerfile，方便看清每个文件在哪一步被读取。",
+    heading: "指令和解析器写在同一个 YAML 里",
+    prose: "教学例叫 summarize：修好一个打印行数的脚本。它不是 Terminal-Bench 仓库里的真题。说明嵌在 task.yaml。很多真题还有 docker-compose.yaml；这里只用 Dockerfile，方便看清每个文件在哪一步被读取。",
     snippets: [
       {
-        label: "summarize/ 原版目录",
+        label: "summarize/ 目录",
         lang: "text",
         code: `summarize/
   task.yaml
@@ -223,7 +223,7 @@ wc -l < /app/data/notes.txt | awk '{print $1}'`,
   },
   {
     heading: "停止之后才跑测试，解析器在框架里",
-    prose: "框架把 tests/ 放到环境中的 /tests，执行 run-tests.sh。pytest 断言标准输出去掉空白后是 3。Terminal-Bench 仓库里的 pytest 解析器读这份输出，映射成通过或失败。任务自己不写 reward.txt。",
+    prose: "框架把 tests/ 放到环境中的 /tests，执行 run-tests.sh。pytest 断言标准输出去掉空白后是 3。Terminal-Bench 仓库里的 pytest 解析器读这份输出，映射成通过或失败。",
     snippets: [
       {
         label: "tests/test_outputs.py",
@@ -243,76 +243,5 @@ pytest -q /tests/test_outputs.py`,
         caption: "退出码和 pytest 摘要交给 parser_name 指定的解析器。计分对象是 agent 加模型。",
       },
     ],
-  },
-];
-
-export const tbV2Example: ExampleBlock[] = [
-  {
-    heading: "同一道题拆成 instruction、环境和验证",
-    prose: "第 2 代用 Harbor。指令单独成文，配置进 task.toml，镜像放进 environment/。两代通过率不要合成一个数。",
-    snippets: [
-      {
-        label: "summarize/ Harbor 目录",
-        lang: "text",
-        code: `summarize/
-  instruction.md
-  task.toml
-  environment/Dockerfile
-  solution/solve.sh
-  tests/test.sh
-  tests/test_outputs.py`,
-        caption: "instruction.md 的正文与原版 task.yaml 里的 instruction 相同。Dockerfile 也与原版相同。",
-      },
-      {
-        label: "task.toml",
-        lang: "toml",
-        code: `schema_version = "1.4"
-
-[task]
-name = "demo/summarize"
-description = "Print the line count of notes.txt"
-
-[verifier]
-timeout_sec = 60.0
-
-[agent]
-timeout_sec = 300.0
-
-[environment]
-cpus = 1
-memory_mb = 2048
-storage_mb = 10240`,
-        caption: "完整 schema 还有作者、网络策略和单独的验证环境。超时与 CPU 一变，就是另一次实验。",
-      },
-    ],
-  },
-  {
-    heading: "验证脚本自己把奖励写进文件",
-    prose: "Harbor 在验证阶段把 tests/ 复制到 /tests，执行 bash /tests/test.sh。工作目录常常是 /app。脚本写出 /logs/verifier/reward.txt，或带多项指标的 reward.json。框架优先读 json。主榜常用 0 和 1。",
-    snippets: [
-      {
-        label: "tests/test.sh",
-        lang: "bash",
-        code: `#!/bin/bash
-pytest -q /tests/test_outputs.py
-if [ $? -eq 0 ]; then
-  echo 1 > /logs/verifier/reward.txt
-else
-  echo 0 > /logs/verifier/reward.txt
-fi`,
-        caption: "test_outputs.py 仍断言输出是 3。解析 pytest 的责任从框架仓库挪到了这道题自己的脚本。",
-      },
-      {
-        label: "一次运行",
-        lang: "bash",
-        code: `harbor run -p summarize -a terminus-2 -m <model>`,
-        caption: "-a 是 scaffold，-m 是模型。成绩写成这一对。Oracle 才会把 solution/solve.sh 复制到 /solution。",
-      },
-    ],
-  },
-  {
-    heading: "默认共用容器，也可以把验证器隔开",
-    prose: "默认同一个容器：agent 停止后，测试才出现在 /tests，因此能看见被改过的 /app。验收代码必须完全离开 agent 那台机器时，验证器使用单独容器，只接收任务声明导出的 artifacts。agent 阶段没有 /tests，也没有 /solution。",
-    snippets: [],
   },
 ];

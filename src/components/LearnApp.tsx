@@ -8,21 +8,15 @@ import {
   sweFields,
   sweTools,
   tbV1Fields,
-  tbV2Fields,
   type Field,
   type Phase,
 } from "@/lib/content";
-import { sweExample, tbV1Example, tbV2Example, type ExampleBlock, type Snippet } from "@/lib/examples";
+import { sweExample, tbV1Example, type ExampleBlock, type Snippet } from "@/lib/examples";
 import { LayerDiagram, StepBar, SweDiagram, SweHarnessPlayer, TbDiagram, TbHarnessPlayer, TimelinePlayer } from "@/components/flow-diagrams";
 
-type Gen = "v1" | "v2";
-
 export function LearnApp() {
-  const [gen, setGen] = useState<Gen>("v1");
   const [phase, setPhase] = useState<Phase>("solve");
   const [branch, setBranch] = useState(sweBranches[0].name);
-
-  const tbFields = gen === "v1" ? tbV1Fields : tbV2Fields;
   const activeBranch = sweBranches.find((item) => item.name === branch) ?? sweBranches[0];
 
   return (
@@ -99,13 +93,13 @@ export function LearnApp() {
             color="#10b981"
             kicker="交一台机器"
             title="Terminal-Bench"
-            tagline="给一台准备好的机器和一段指令。原版用框架解析 pytest，第 2 代由任务自己写下奖励文件。两代通过率不要写在一起。"
+            tagline="给一台准备好的机器和一段指令。结束后跑 run-tests.sh，由框架解析 pytest 输出。"
           />
-          <TbIntro gen={gen} onGen={setGen} />
-          <TbDiagram gen={gen} />
-          <Walkthrough blocks={gen === "v1" ? tbV1Example : tbV2Example} />
-          <Visibility phase={phase} onPhase={setPhase} fields={tbFields} />
-          <TbHarnessPlayer gen={gen} />
+          <TbIntro />
+          <TbDiagram />
+          <Walkthrough blocks={tbV1Example} />
+          <Visibility phase={phase} onPhase={setPhase} fields={tbV1Fields} />
+          <TbHarnessPlayer />
         </section>
 
         <section id="compare" className="scroll-mt-20 border-t py-14 sm:py-20">
@@ -291,21 +285,15 @@ function SweIntro() {
   );
 }
 
-function TbIntro({ gen, onGen }: { gen: Gen; onGen: (gen: Gen) => void }) {
+function TbIntro() {
   return (
     <section className="h-full rounded-2xl border bg-card p-4 shadow-sm ring-1 ring-black/[0.03] sm:p-6">
       <h2 className="text-xl font-semibold">Terminal-Bench 在问什么</h2>
       <p className="mt-2 leading-7 text-muted-foreground">
-        给一台准备好的机器和一段指令，让 agent 把机器做成指令描述的状态。同一道教学例 summarize 按代际换成两套目录。
+        给一台准备好的机器和一段指令，让 agent 把机器做成指令描述的状态。教学例 summarize 用这套目录走一遍。
       </p>
-      <div className="mt-4 inline-flex rounded-full border border-border bg-background p-1">
-        <BenchButton active={gen === "v1"} onClick={() => onGen("v1")}>原版</BenchButton>
-        <BenchButton active={gen === "v2"} onClick={() => onGen("v2")}>第 2 代</BenchButton>
-      </div>
       <p className="mt-4 leading-7">
-        {gen === "v1"
-          ? "原版把指令嵌在 task.yaml 里。结束后跑 run-tests.sh，由评测仓库里的解析器读 pytest 输出。"
-          : "第 2 代使用 Harbor。instruction.md 单独成文，tests/test.sh 自己把奖励写到 reward.txt。两代通过率不要写在一起。"}
+        指令嵌在 task.yaml 里。结束后跑 run-tests.sh，由评测仓库里的解析器读 pytest 输出。
       </p>
     </section>
   );
